@@ -220,13 +220,14 @@ bool MapObject::IsVisible(bool culling)
 
     Layer currentLayer = Map::m_LayerNavigation->GetLayer();
 
-    if (currentLayer == Layer::Depths && y > groundThreshold)
-        return false;
-
-    if (currentLayer == Layer::Surface && (y < groundThreshold || y > skyThreshold))
-        return false;
-
-    if (currentLayer == Layer::Sky && y < skyThreshold)
+    if (m_ObjectData->m_Layer >= 0) // zayr: fixed layer from map_data.json
+    {
+        if ((int)currentLayer != m_ObjectData->m_Layer)
+            return false;
+    }
+    else if ((currentLayer == Layer::Depths && y > groundThreshold) ||
+             (currentLayer == Layer::Surface && (y < groundThreshold || y > skyThreshold)) ||
+             (currentLayer == Layer::Sky && y < skyThreshold))
         return false;
 
     // Cases for show levels

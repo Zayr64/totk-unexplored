@@ -1,4 +1,6 @@
 # Totk Unexplored
+
+> **Zayr64 fork (branch `zayr/dados`).** Based on lud99 1.0.4. Data fixes checked against the game's map percentage list ([radar-totk `map_pct.json`](https://github.com/zeldamods/radar-totk)) and the 100% save in `romfs/100.sav`: every cave, well and chasm entrance now needs the cave flag and its own `IsVisitLocationArea_CaveEntrance` flag (issues #8 and #13); added the 15 Skyview Towers (visit and launch), the 12 Ancient Tablets (issue #14) and the 5 temples; 5 Koroks moved to the right layer (issue #1); the save is mounted read-only on every path. Data generator: `tools/zayr_dados.py`. Host test: `tests/test_data.cpp`.
 Easily view what hasn't been discovered in your Tears of the Kingdom savefile on your Nintendo Switch.
 
 The korok seeds that haven't been collected, the locations that are left to visit and the 16 other types of unexplored collectibles are shown on a map, where it's easy to see what you've missed.

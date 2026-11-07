@@ -5,6 +5,7 @@
 #include <iostream>
 #include <map>
 #include <set>
+#include <unordered_map>
 #include <iostream>
 #include <stdio.h>
 
@@ -154,7 +155,7 @@ int SavefileIO::MountSavefile(bool openProfilePicker)
 
         if (accountUidIsValid(&uid))
         {
-            Result rc = fsdevMountSaveData("save", totkId, uid);
+            Result rc = fsdevMountSaveDataReadOnly("save", totkId, uid); // zayr: read-only on every path
             if (R_FAILED(rc))
             {
                 Log("Failed to mount save (cached user)");
@@ -583,10 +584,12 @@ bool SavefileIO::ParseFile(const char *filepath)
     size_t hashTableEnd = GetHashTableEnd(buffer, fileSize);
     Log("Hash table end:", (int)hashTableEnd);
 
-    // Iterate through the entire savefile to find the korok seed and location hashes
+    // zayr: read the flag table once (hash -> value), then evaluate every object.
+    // An object with a second flag (completion_hash2) only counts when both are set.
+    std::unordered_map<uint32_t, uint32_t> flags;
+    flags.reserve(160000);
     for (unsigned int offset = 0x000028; offset < hashTableEnd; offset += 8)
     {
-        // Read the korok or location hash ('id')
         uint32_t hashValue = ReadU32(buffer, offset);
 
         if (hashValue == 0xa3db7114) //found MetaData.SaveTypeHash
@@ -596,43 +599,44 @@ bool SavefileIO::ParseFile(const char *filepath)
             break;
         }
 
-        for (int i = 0; i < (int)Data::ObjectType::Count; i++)
+        flags.emplace(hashValue, ReadU32(buffer, offset + 4));
+    }
+
+    for (int i = 0; i < (int)Data::ObjectType::Count; i++)
+    {
+        Data::ObjectType type = (Data::ObjectType)i;
+
+        // Filter out objects that use guids
+        if (type == Data::ObjectType::SagesWill || type == Data::ObjectType::AddisonSign)
+            continue;
+
+        for (Data::Object* obj : Data::m_Objects[type])
         {
-            Data::ObjectType type = (Data::ObjectType)i;
+            auto it = flags.find(obj->m_CompletionHash);
+            if (it == flags.end())
+                continue; // Flag not in the save: not found, as before
 
-            // Filter out objects that use guids
-            if (type == Data::ObjectType::SagesWill || type == Data::ObjectType::AddisonSign)
-                continue;
+            uint32_t status = it->second;
+            bool found = false;
 
-                
-            // Because caves have multiple entrances in the data with the same hash, the Data::GetObjectByHash function only finds the first one.
-            // This results in the first entrance being found, but the rest not since they are never returned by the function
-            // Return all objects in the dataset with the matching hash instead
+            // More flags for shrines:
+            // https://github.com/marcrobledo/savegame-editors/blob/fdcad683d64524f4e1ef774f01cad828a7ce3d0d/zelda-totk/zelda-totk.completism.js#L124C1-L124C124
+            if (type == Data::ObjectType::Shrine)
+                found = (status == 1654019904); // The status flag ('Clear') if a shrine is cleared
+            else if (type == Data::ObjectType::Lightroot)
+                found = (status == 404286466); // The status flag ('Open') for if a lightroot is completed
+            else if (type == Data::ObjectType::CarryKorok)
+                found = (status == 1654019904); // The status flag 'Clear' if it is completed
+            else
+                found = (status != 0); // General case. 0 means it is not found
 
-            std::vector<Data::Object*> objects = Data::GetObjectsByHash(type, hashValue);
-            if (!objects.empty())
+            if (found && obj->m_CompletionHash2 != 0)
             {
-                // Read the 4 bytes after the hash
-                uint32_t status = ReadU32(buffer, offset + 4);
-                bool found = false;
-
-                // Special case for shrines and lightroots
-                // More flags for shrines: 
-                // https://github.com/marcrobledo/savegame-editors/blob/fdcad683d64524f4e1ef774f01cad828a7ce3d0d/zelda-totk/zelda-totk.completism.js#L124C1-L124C124
-                if (type == Data::ObjectType::Shrine)
-                    found = (status == 1654019904); // The status flag ('Clear') if a shrine is cleared
-                else if (type == Data::ObjectType::Lightroot)
-                    found = (status == 404286466); // The status flag ('Open') for if a lightroot is completed
-                else if (type == Data::ObjectType::CarryKorok)
-                    found = (status == 1654019904); // The status flag 'Clear' if it is completed
-                else
-                    found = (status != 0); // General case. 0 means it is not found
-
-                
-                // Mark all the objects with the same hash
-                for (Data::Object* obj : objects)
-                    found ? loadedData.found[type].push_back(obj) : loadedData.missing[type].push_back(obj);
+                auto it2 = flags.find(obj->m_CompletionHash2);
+                found = it2 != flags.end() && it2->second != 0;
             }
+
+            found ? loadedData.found[type].push_back(obj) : loadedData.missing[type].push_back(obj);
         }
     }
 

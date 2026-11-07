@@ -64,6 +64,17 @@ void Data::LoadFromJSON(const std::string& filepath)
 
     auto ParseJSONPosition = [] (json& position) -> glm::vec3 {
         return glm::vec3((float)position["x"], (float)position["y"], (float)position["z"]);
+    };
+
+    // zayr: optional second flag (both must be set) and fixed layer
+    auto ReadExtras = [] (Object* obj, json& entry) {
+        if (entry.contains("completion_hash2"))
+            obj->m_CompletionHash2 = uint32_t(entry["completion_hash2"]);
+        if (entry.contains("layer"))
+        {
+            std::string layer = entry["layer"];
+            obj->m_Layer = layer == "Depths" ? 0 : (layer == "Sky" ? 2 : 1);
+        }
     };  
 
     Log("shrines");
@@ -124,6 +135,8 @@ void Data::LoadFromJSON(const std::string& filepath)
             }
         }
 
+        ReadExtras(obj, entry);
+
         m_Objects[ObjectType::HiddenKorok].push_back((Object*)obj);
     }
     
@@ -148,6 +161,8 @@ void Data::LoadFromJSON(const std::string& filepath)
                 obj->m_Path = new KorokPath(obj->m_CompletionHash, { start, end });
             }
         }
+
+        ReadExtras(obj, entry);
 
         m_Objects[ObjectType::CarryKorok].push_back((Object*)obj);
     }
@@ -174,6 +189,8 @@ void Data::LoadFromJSON(const std::string& filepath)
             std::string(entry["display_name"])
         );
 
+        ReadExtras(obj, entry);
+
         m_Objects[ObjectType::Location].push_back(obj);
     }
 
@@ -191,6 +208,8 @@ void Data::LoadFromJSON(const std::string& filepath)
             std::string(entry["display_name"])
         );
 
+        ReadExtras(obj, entry);
+
         m_Objects[ObjectType::Cave].push_back(obj);
     }
 
@@ -204,6 +223,8 @@ void Data::LoadFromJSON(const std::string& filepath)
             std::string(entry["display_name"])
         );
 
+        ReadExtras(obj, entry);
+
         m_Objects[ObjectType::Well].push_back(obj);   
     }
 
@@ -216,6 +237,8 @@ void Data::LoadFromJSON(const std::string& filepath)
             ParseJSONPosition(entry["position"]),
             std::string(entry["display_name"])
         );
+
+        ReadExtras(obj, entry);
 
         m_Objects[ObjectType::Chasm].push_back(obj);
     }

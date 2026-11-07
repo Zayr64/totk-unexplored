@@ -12,8 +12,10 @@ namespace Data
 {
     struct Object
     {
-        uint32_t m_CompletionHash;
-        uint64_t m_CompletionGuid;
+        uint32_t m_CompletionHash = 0;
+        uint32_t m_CompletionHash2 = 0; // zayr: second flag that must also be set (0 = none)
+        uint64_t m_CompletionGuid = 0;
+        int m_Layer = -1; // zayr: fixed layer (0 depths, 1 surface, 2 sky); -1 = by height
 
         glm::vec3 m_Position;
 

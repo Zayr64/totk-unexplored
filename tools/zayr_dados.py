@@ -107,6 +107,15 @@ def main(map_path, static_path, pct_path):
             if real != by_height:
                 e['layer'] = real
 
+    # 4. Santuários do céu que o original subiu 500 m para cair na camada do céu: altura real e camada fixa
+    #    (a distância até o Link passa a ser a certa).
+    dungeons = {m['MessageID']: m for m in markers['Dungeon']}
+    for e in data['shrines']:
+        real_y = dungeons[e['internal_name']]['Translate']['Y']
+        if abs(e['position']['y'] - real_y - 500) < 1:
+            e['position']['y'] = round(real_y, 4)
+            e['layer'] = 'Sky'
+
     with open(map_path, 'w', encoding='utf-8', newline='\n') as f:
         f.write(json.dumps(data, indent=4, ensure_ascii=False))
 

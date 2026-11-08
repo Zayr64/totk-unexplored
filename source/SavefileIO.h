@@ -85,5 +85,9 @@ public:
     bool MasterModeFileLoaded;
     bool HasDLC;
 
+    // zayr: Link's position in the loaded save (PlayerStatus.SavePos)
+    glm::vec3 PlayerPosition = glm::vec3(0.0f);
+    bool HasPlayerPosition = false;
+
     int MasterModeSlot;
 };

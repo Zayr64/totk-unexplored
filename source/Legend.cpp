@@ -58,8 +58,8 @@ Legend::Legend()
 
             // Last iteration. Show the show completed buttom
             IconButton* button = nullptr;
-            if (i == end - 1)    
-                i = (int)IconButton::ShowCompleted;
+            if (i == end - 1)
+                continue; // zayr: no Show Completed button (only Missing)
 
             button = new IconButton((IconButton::ButtonTypes)i, glm::vec2(posLeft, topY), buttonWidth, buttonHeight, 1.25f * 0.5f);
             
@@ -77,7 +77,8 @@ Legend::Legend()
     m_Buttons[0][1]->Click(this, true);
     m_Show[IconButton::Shrines] = true;
     
-    m_Buttons[0].back()->Click(this, true, (int)ShowLevel::Missing);
+    m_Show[IconButton::ShowCompleted] = false;
+    m_ShowLevel = ShowLevel::Missing; // zayr: only Missing
 
     // Set first highlighted button
     UpdateSelectedButton();
@@ -210,10 +211,6 @@ void Legend::Update()
             m_Buttons[m_Page][m_HighlightedButton]->Click(this);
     }
 
-    if (buttonsPressed & HidNpadButton_Y)
-    {
-        m_Buttons[m_Page].back()->Click(this);
-    }
 
 
     // Position and flip arrow according to page

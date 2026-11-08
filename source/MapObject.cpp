@@ -1,4 +1,5 @@
 #include "MapObject.h"
+#include "Zayr.h"
 
 #include "Graphics/Texture2D.h"
 #include "Graphics/BasicVertices.h"
@@ -215,19 +216,10 @@ bool MapObject::IsVisible(bool culling)
 
     float y = m_ObjectData->m_Position.y;
 
-    const float skyThreshold = 750.0f;
-    const float groundThreshold = -50.0f; 
 
     Layer currentLayer = Map::m_LayerNavigation->GetLayer();
 
-    if (m_ObjectData->m_Layer >= 0) // zayr: fixed layer from map_data.json
-    {
-        if ((int)currentLayer != m_ObjectData->m_Layer)
-            return false;
-    }
-    else if ((currentLayer == Layer::Depths && y > groundThreshold) ||
-             (currentLayer == Layer::Surface && (y < groundThreshold || y > skyThreshold)) ||
-             (currentLayer == Layer::Sky && y < skyThreshold))
+    if (Zayr::ObjectLayer(m_ObjectData->m_Layer, y) != (int)currentLayer) // zayr: fixed layer from map_data.json or the height rule
         return false;
 
     // Cases for show levels

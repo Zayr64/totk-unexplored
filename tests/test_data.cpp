@@ -5,6 +5,9 @@
 // evaluates every object against romfs/100.sav with the same rules as SavefileIO::ParseFile.
 #include <json.hpp>
 
+#include "../source/Zayr.h"
+
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
@@ -126,12 +129,31 @@ int main()
     std::vector<uint8_t> save((std::istreambuf_iterator<char>(saveFile)), std::istreambuf_iterator<char>());
     Check(save.size() > 0x28, "romfs/100.sav");
     std::unordered_map<uint32_t, uint32_t> flags;
+    bool hasPlayer = false;
+    float player[3] = { 0, 0, 0 };
     for (size_t o = 0x28; o + 8 <= save.size(); o += 8)
     {
         uint32_t h = U32(save, o);
         if (h == 0xa3db7114) break;
         flags.emplace(h, U32(save, o + 4));
+        if (h == Zayr::PlayerSavePosHash)
+            hasPlayer = Zayr::ReadVector3(save.data(), save.size(), U32(save, o + 4), player);
     }
+
+    // Link's position (PlayerStatus.SavePos) in the 100% save: in the sky, near the Great Sky Island
+    Check(Murmur3("PlayerStatus.SavePos") == Zayr::PlayerSavePosHash, "PlayerStatus.SavePos hash");
+    Check(hasPlayer && std::abs(player[0] - 1074.545f) < 0.01f && std::abs(player[1] - 891.802f) < 0.01f && std::abs(player[2] - 3347.016f) < 0.01f,
+          "Link position in the 100% save");
+    Check(Zayr::LayerForHeight(player[1]) == 2, "Link is on the sky layer");
+    Check(!Zayr::ReadVector3(save.data(), save.size(), (uint32_t)save.size() - 8, player), "vector out of the file is rejected");
+    Check(Zayr::LayerForHeight(749.9f) == 1 && Zayr::LayerForHeight(750.0f) == 2 && Zayr::LayerForHeight(-50.1f) == 0, "layer by height");
+    Check(Zayr::ObjectLayer(2, 100.0f) == 2 && Zayr::ObjectLayer(-1, 100.0f) == 1, "fixed layer wins");
+
+    // The three sky shrines keep their real height and a fixed sky layer
+    int skyShrines = 0;
+    for (auto& e : data["shrines"])
+        if (e.value("layer", "") == "Sky") { skyShrines++; Check(float(e["position"]["y"]) < 750.0f, "sky shrine at its real height"); }
+    Check(skyShrines == 3, "3 sky shrines with a fixed layer, got " + std::to_string(skyShrines));
     const uint32_t Clear = 1654019904, Open = 404286466;
     int total = 0, missing = 0;
     for (auto& [cat, list] : data.items())

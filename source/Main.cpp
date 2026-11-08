@@ -173,11 +173,15 @@ void LoadSettings()
         Map::m_Legend->m_HighlightedButton = std::stoi(line); // highlighted button
 
         std::getline(settingsFile, line);
-        Map::m_Legend->m_ShowLevel = (Legend::ShowLevel)std::stoi(line); // show level
-        Map::m_Legend->m_Buttons[0].back()->Click(Map::m_Legend, true, (int)Map::m_Legend->m_ShowLevel); // Click the showCompleted button 
+        Map::m_Legend->m_ShowLevel = Legend::ShowLevel::Missing; // zayr: only Missing (the saved level is ignored)
 
         std::getline(settingsFile, line);
         Map::m_Legend->m_Page = std::stoi(line); // Legend page
+        if (Map::m_Legend->m_Page < 0 || Map::m_Legend->m_Page >= (int)Map::m_Legend->m_Buttons.size())
+            Map::m_Legend->m_Page = 0;
+        int buttonsOnPage = (int)Map::m_Legend->m_Buttons[Map::m_Legend->m_Page].size();
+        if (Map::m_Legend->m_HighlightedButton < 0 || Map::m_Legend->m_HighlightedButton >= buttonsOnPage)
+            Map::m_Legend->m_HighlightedButton = 0;
         for (int j = 0; j < (int)Map::m_Legend->m_Buttons.size(); j++)
         {
             for (int i = 0; i < (int)Map::m_Legend->m_Buttons[j].size(); i++)
@@ -295,6 +299,7 @@ int main()
 
             std::cout << "Update map objects first time\n";
             Map::UpdateMapObjects();
+            Map::GoToPlayer(false); // zayr: the map opens on Link
 
             // Load manually checked koroks (but only if the game is running)
             // Override the checking from the savefile

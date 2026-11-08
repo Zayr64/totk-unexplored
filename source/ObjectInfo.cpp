@@ -6,6 +6,8 @@
 #include "Log.h"
 #include "MapObject.h"
 
+#include <glm/geometric.hpp>
+
 glm::vec3 ToInGameCoordinates(glm::vec3 realCoordinates)
 {
 	return { realCoordinates.x, -realCoordinates.z, realCoordinates.y - 105.0f };
@@ -114,6 +116,14 @@ void ObjectInfo::Render(glm::mat4 projMat, glm::mat4 viewMat)
     textPos.y -= textSize.y + 25;
     textSize = Map::m_Font.AddTextToBatch(position, textPos, 0.4f, glm::vec3(1.0f), ALIGN_LEFT, Width - m_Margin * 2);
     textPos.y -= textSize.y + 50;
+
+    // zayr: distance from Link (position of the last save)
+    if (SavefileIO::Get().HasPlayerPosition)
+    {
+        int meters = (int)glm::distance(m_MapObject->m_ObjectData->m_Position, SavefileIO::Get().PlayerPosition);
+        textSize = Map::m_Font.AddTextToBatch("Distance from Link: " + std::to_string(meters) + " m", textPos, 0.45f, glm::vec3(1.0f), ALIGN_LEFT, Width - m_Margin * 2);
+        textPos.y -= textSize.y + 40;
+    }
 
     // Other info
     std::string otherInfo = "";

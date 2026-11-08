@@ -1096,9 +1096,10 @@
             "completion_hash": 2884153688,
             "position": {
                 "x": 1376.408,
-                "y": 1048.0139,
+                "y": 548.0139,
                 "z": 3339.86
-            }
+            },
+            "layer": "Sky"
         },
         {
             "internal_name": "Dungeon110",
@@ -1216,9 +1217,10 @@
             "completion_hash": 2683425349,
             "position": {
                 "x": -2401.844,
-                "y": 1234.3179,
+                "y": 734.3179,
                 "z": -825.2271
-            }
+            },
+            "layer": "Sky"
         },
         {
             "internal_name": "Dungeon122",
@@ -1506,9 +1508,10 @@
             "completion_hash": 2039922346,
             "position": {
                 "x": 1468.611,
-                "y": 1204.8132,
+                "y": 704.8132,
                 "z": 2168.893
-            }
+            },
+            "layer": "Sky"
         },
         {
             "internal_name": "Dungeon151",

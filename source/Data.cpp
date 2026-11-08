@@ -87,6 +87,8 @@ void Data::LoadFromJSON(const std::string& filepath)
             std::string(entry["display_name"])
         );
 
+        ReadExtras(obj, entry);
+
         m_Objects[ObjectType::Shrine].push_back(obj);
     }
 

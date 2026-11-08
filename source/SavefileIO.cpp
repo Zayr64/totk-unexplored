@@ -15,6 +15,7 @@
 #include "Map.h"
 #include "Dialog.h"
 #include "Log.h"
+#include "Zayr.h"
 
 SavefileIO& SavefileIO::Get()
 {
@@ -558,6 +559,7 @@ bool SavefileIO::ParseFile(const char *filepath)
 
     // Clear the current file data
     loadedData = {};
+    HasPlayerPosition = false;
 
     if (!FileExists(filepath))
         return false;
@@ -600,6 +602,16 @@ bool SavefileIO::ParseFile(const char *filepath)
         }
 
         flags.emplace(hashValue, ReadU32(buffer, offset + 4));
+
+        if (hashValue == Zayr::PlayerSavePosHash)
+        {
+            float position[3];
+            if (Zayr::ReadVector3(buffer, fileSize, ReadU32(buffer, offset + 4), position))
+            {
+                PlayerPosition = glm::vec3(position[0], position[1], position[2]);
+                HasPlayerPosition = true;
+            }
+        }
     }
 
     for (int i = 0; i < (int)Data::ObjectType::Count; i++)

@@ -27,7 +27,10 @@
 
 #include "qrcodegen.hpp"
 
-#include "SavefileIO.h" 
+#include "SavefileIO.h"
+#include "Zayr.h"
+
+#include <glm/geometric.hpp>
 
 float MapScale = 0.125;
 
@@ -45,6 +48,80 @@ bool IsApplet()
 {
     AppletType at = appletGetAppletType();
     return (at != AppletType_Application && at != AppletType_SystemApplication);
+}
+
+// zayr: Link marker and the nearest-missing controls (ZR/ZL, R, L)
+namespace
+{
+    std::vector<MapObject*> s_NearestList; // The 5 missing objects nearest to Link, for ZR/ZL
+    int s_NearestIndex = -1;
+    MapObject* s_NearestOpen = nullptr; // Object opened by ZR/ZL (for the text at the bottom)
+}
+
+TexturedQuad Map::m_PlayerMarker;
+
+static glm::vec3 NearestOrigin()
+{
+    SavefileIO& save = SavefileIO::Get();
+    if (save.HasPlayerPosition)
+        return save.PlayerPosition;
+
+    // No position in the save: the center of the screen, at the surface
+    return glm::vec3(Map::m_TargetCameraPosition.x / MapScale, 0.0f, -Map::m_TargetCameraPosition.y / MapScale);
+}
+
+static bool IsMissingCandidate(MapObject& object)
+{
+    if (object.m_ObjectData == nullptr || object.m_Found)
+        return false;
+
+    return Map::m_Legend->m_Show[IconButton::ObjectTypeToButtonType(object.m_ObjectType)];
+}
+
+static std::vector<MapObject*> NearestMissing(size_t count)
+{
+    glm::vec3 origin = NearestOrigin();
+    std::vector<std::pair<float, MapObject*>> candidates;
+    for (int i = 0; i < (int)Data::ObjectType::Count; i++)
+    {
+        for (auto& object : Map::m_MapObjects[(Data::ObjectType)i])
+        {
+            if (IsMissingCandidate(object))
+                candidates.push_back({ glm::distance(object.m_ObjectData->m_Position, origin), &object });
+        }
+    }
+
+    count = std::min(count, candidates.size());
+    std::partial_sort(candidates.begin(), candidates.begin() + count, candidates.end(),
+        [](const std::pair<float, MapObject*>& a, const std::pair<float, MapObject*>& b) { return a.first < b.first; });
+
+    std::vector<MapObject*> result;
+    for (size_t i = 0; i < count; i++)
+        result.push_back(candidates[i].second);
+    return result;
+}
+
+static void OpenObject(MapObject* object)
+{
+    Data::Object* data = object->m_ObjectData;
+    Map::m_LayerNavigation->SetLayer((Layer)Zayr::ObjectLayer(data->m_Layer, data->m_Position.y));
+    Map::m_ObjectInfo->SetObject(object);
+    Map::m_ObjectInfo->SetOpen(true);
+    Map::SetCameraPosition(object->m_Position);
+    Map::m_TargetCursorPosition = glm::vec2(0.0f, 0.0f);
+}
+
+void Map::GoToPlayer(bool resetZoom)
+{
+    SavefileIO& save = SavefileIO::Get();
+    if (!save.HasPlayerPosition)
+        return;
+
+    m_LayerNavigation->SetLayer((Layer)Zayr::LayerForHeight(save.PlayerPosition.y));
+    SetCameraPosition(TransformPositionTo2DMap(save.PlayerPosition));
+    m_TargetCursorPosition = glm::vec2(0.0f, 0.0f);
+    if (resetZoom)
+        m_Zoom = m_DefaultZoom;
 }
 
 void Map::Init()
@@ -103,6 +180,10 @@ void Map::Init()
     m_Cursor.Create("romfs:/icons/cursor.png");
     m_Cursor.m_Position = glm::vec2(0.0f, 0.0f);
     m_Cursor.m_ProjectionMatrix = &m_ProjectionMatrix;
+
+    m_PlayerMarker.Create("romfs:/icons/player.png"); // zayr
+    m_PlayerMarker.m_ProjectionMatrix = &m_ProjectionMatrix;
+    m_PlayerMarker.m_ViewMatrix = &m_ViewMatrix;
 
     LoadLayerImage();
 
@@ -198,18 +279,78 @@ void Map::Update()
     if (fabs(stickRPosition.y) >= deadzone)
         m_Zoom *= 1.0f + zoomAmount * stickRPosition.y;
 
-    // Zoom with L and R
-    if (buttonsDown & HidNpadButton_R) // Zoom in
-        m_Zoom *= 1.0f + zoomAmount;
+    // zayr: L and R no longer zoom (the right stick does). L goes to Link keeping the zoom, R opens the missing
+    // object nearest to the screen center, ZR/ZL go through the 5 missing objects nearest to Link.
+    bool canUseMap = SavefileIO::Get().LoadedSavefile && !m_QrCodeImage.m_Show &&
+        !m_NoSavefileDialog->m_IsOpen && !m_GameRunningDialog->m_IsOpen && !m_NoInternetDialog->m_IsOpen;
 
-    if (buttonsDown & HidNpadButton_L) // Zoom out
-        m_Zoom *= 1.0f - zoomAmount;
-
-    // Reset zoom if pressing L or R stick
+    // Clicking the left stick: back to Link with the default zoom (the whole map if the save has no position)
     if (buttonsPressed & HidNpadButton_StickL)
     {
-        m_Zoom = m_DefaultZoom;
-        SetCameraPosition(glm::vec2(0.0f, 0.0f));
+        if (SavefileIO::Get().HasPlayerPosition)
+            GoToPlayer(true);
+        else
+        {
+            m_Zoom = m_DefaultZoom;
+            SetCameraPosition(glm::vec2(0.0f, 0.0f));
+        }
+    }
+
+    if (canUseMap && (buttonsPressed & HidNpadButton_L))
+        GoToPlayer(false);
+
+    if (canUseMap && (buttonsPressed & HidNpadButton_R))
+    {
+        MapObject* nearest = nullptr;
+        float nearestDistance = 0.0f;
+        for (int i = 0; i < (int)Data::ObjectType::Count; i++)
+        {
+            for (auto& object : m_MapObjects[(Data::ObjectType)i])
+            {
+                if (!IsMissingCandidate(object) || !object.IsVisible(false))
+                    continue;
+
+                float distance = glm::distance(object.m_Position, m_TargetCameraPosition);
+                if (nearest == nullptr || distance < nearestDistance)
+                {
+                    nearest = &object;
+                    nearestDistance = distance;
+                }
+            }
+        }
+
+        if (nearest)
+        {
+            OpenObject(nearest);
+
+            // The next ZR starts again from the object nearest to Link
+            s_NearestList.clear();
+            s_NearestIndex = -1;
+            s_NearestOpen = nullptr;
+        }
+    }
+
+    if (canUseMap && (buttonsPressed & (HidNpadButton_ZR | HidNpadButton_ZL)))
+    {
+        std::vector<MapObject*> list = NearestMissing(5);
+        if (!list.empty())
+        {
+            if (list != s_NearestList || s_NearestIndex < 0)
+            {
+                // New list (first press, filter changed, save reloaded, object marked): start from the nearest
+                s_NearestList = list;
+                s_NearestIndex = 0;
+            }
+            else
+            {
+                int step = (buttonsPressed & HidNpadButton_ZR) ? 1 : -1;
+                int size = (int)s_NearestList.size();
+                s_NearestIndex = (s_NearestIndex + step + size) % size;
+            }
+
+            s_NearestOpen = s_NearestList[s_NearestIndex];
+            OpenObject(s_NearestOpen);
+        }
     }
 
     if (m_Zoom < minZoom) m_Zoom = minZoom;
@@ -507,6 +648,19 @@ void Map::Render()
             if (m_Legend->m_Show[IconButton::ObjectTypeToButtonType(type)])
                 m_MapObjects[type][0].Render();
         }
+
+        // zayr: Link at the position of the last save, on its layer
+        SavefileIO& zsave = SavefileIO::Get();
+        if (zsave.HasPlayerPosition && Zayr::LayerForHeight(zsave.PlayerPosition.y) == (int)m_LayerNavigation->GetLayer())
+        {
+            float scale = (0.85f / m_Zoom) * 0.5f;
+            if (scale < 0.125f * 0.5f)
+                scale = 0.125f * 0.5f;
+
+            m_PlayerMarker.m_Position = TransformPositionTo2DMap(zsave.PlayerPosition);
+            m_PlayerMarker.m_Scale = scale * 54.0f / (float)m_PlayerMarker.m_Texture->m_Width;
+            m_PlayerMarker.Render();
+        }
     }
 
     // Toggle QR code
@@ -601,8 +755,16 @@ void Map::Render()
 
             float bottomTextX = m_ScreenRight - 30;
 
-            m_Font.AddTextToBatch("L and R to zoom, (-) to change user, (+) to exit", 
+            m_Font.AddTextToBatch("ZL/ZR: nearest  R: center  L: Link  (-): change user  (+): exit", 
             glm::vec2(bottomTextX, m_ScreenBottom + 20), 0.5f, glm::vec3(1.0f), ALIGN_RIGHT);  
+            // zayr: which of the nearest missing objects is open
+            if (s_NearestOpen && s_NearestIndex >= 0 && m_ObjectInfo->m_IsOpen && m_ObjectInfo->m_MapObject == s_NearestOpen)
+            {
+                int meters = (int)glm::distance(s_NearestOpen->m_ObjectData->m_Position, NearestOrigin());
+                std::string text = "Nearest missing " + std::to_string(s_NearestIndex + 1) + "/" +
+                    std::to_string(s_NearestList.size()) + "   " + std::to_string(meters) + " m";
+                m_Font.AddTextToBatch(text, glm::vec2(bottomTextX, m_ScreenBottom + 50), 0.5f, glm::vec3(1.0f), ALIGN_RIGHT);
+            }
         }
     } 
     else

@@ -42,6 +42,8 @@ namespace Map
 
     MapObject* GetObjectInCursor();
 
+    void GoToPlayer(bool resetZoom); // zayr: camera to Link (position of the last save)
+
     void Destory();
 
     const float m_DefaultZoom = 0.125f * 4;
@@ -86,6 +88,7 @@ namespace Map
     extern std::unordered_map<Data::ObjectType, std::vector<MapObject>> m_MapObjects;
 
     extern TexturedQuad m_Cursor;
+    extern TexturedQuad m_PlayerMarker; // zayr
 
     extern QrCodeImage m_QrCodeImage;
     extern int m_ExportedImageNumber;

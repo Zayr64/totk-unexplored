@@ -40,7 +40,7 @@ include $(DEVKITPRO)/libnx/switch_rules
 
 APP_TITLE	:=	TotK Unexplored
 APP_AUTHOR	:=	BigBear
-APP_VERSION :=  1.0.4-zayr1
+APP_VERSION :=  1.0.4-zayr2
 
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
